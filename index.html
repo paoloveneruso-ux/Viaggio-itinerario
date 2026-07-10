@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Itinerario">
+<meta name="theme-color" content="#12181A">
+<title>Itinerario di Viaggio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12181A;
+  --surface:#1B2224;
+  --surface-2:#242D2F;
+  --line:#37403F;
+  --line-soft:#2A3234;
+  --text:#EDEDE4;
+  --text-dim:#96A29E;
+  --text-faint:#647070;
+  --accent-route:#6FA8B8;
+  --accent-route-dim:#3E5A62;
+  --accent-stop:#CB8354;
+  --accent-house:#8FAE79;
+  --danger:#C46A5C;
+  --radius:14px;
+  --font-display:'Space Grotesk', sans-serif;
+  --font-body:'Inter', sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  padding-bottom:calc(48px + env(safe-area-inset-bottom));
+  padding-top:env(safe-area-inset-top);
+  -webkit-tap-highlight-color:transparent;
+}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px;}
+
+/* Header */
+header.top{
+  position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg, var(--bg) 70%, rgba(18,24,26,0));
+  padding:18px 16px 10px;
+  backdrop-filter:blur(6px);
+}
+.brand{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:22px;
+  letter-spacing:-0.02em;
+  display:flex;align-items:center;gap:10px;
+}
+.brand .mark{
+  width:10px;height:10px;border-radius:2px;
+  background:var(--accent-stop);
+  transform:rotate(45deg);
+  flex-shrink:0;
+}
+.trip-row{
+  display:flex;gap:8px;align-items:center;margin-top:12px;
+}
+select#tripSelect{
+  flex:1;
+  background:var(--surface);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 12px;
+  font-family:var(--font-body);
+  font-size:15px;
+  font-weight:500;
+}
+button.icon-btn{
+  background:var(--surface);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:10px;
+  width:40px;height:40px;
+  font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  cursor:pointer;
+}
+button.icon-btn:active{background:var(--surface-2);}
+
+/* Section titles */
+.section-label{
+  font-family:var(--font-display);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color:var(--text-faint);
+  margin:22px 0 10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+
+/* Settings */
+details.settings{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:0;
+  margin-top:14px;
+  overflow:hidden;
+}
+details.settings summary{
+  list-style:none;
+  padding:12px 14px;
+  cursor:pointer;
+  font-size:13px;
+  color:var(--text-dim);
+  display:flex;align-items:center;justify-content:space-between;
+}
+details.settings summary::-webkit-details-marker{display:none;}
+.settings-body{padding:4px 14px 16px;}
+.settings-body p{font-size:12.5px;color:var(--text-dim);line-height:1.5;margin:6px 0 10px;}
+.settings-body a{color:var(--accent-route);}
+input.field, textarea.field{
+  width:100%;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:8px;
+  padding:10px 12px;
+  font-size:14px;
+  font-family:var(--font-body);
+  margin-bottom:8px;
+}
+.settings-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.btn-sm{
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:8px;
+  padding:8px 12px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.btn-sm.primary{background:var(--accent-route-dim);border-color:var(--accent-route);}
+
+/* Day card */
+.day-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  margin-bottom:16px;
+  overflow:hidden;
+}
+.day-head{
+  padding:14px 16px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--line-soft);
+}
+.day-title-wrap{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;}
+.day-num{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:13px;
+  color:var(--accent-stop);
+  flex-shrink:0;
+}
+input.day-label{
+  background:transparent;border:none;color:var(--text);
+  font-family:var(--font-display);font-weight:600;font-size:15.5px;
+  padding:2px 0;min-width:0;flex:1;
+}
+input.day-date{
+  background:transparent;border:none;color:var(--text-dim);
+  font-size:12.5px;font-family:var(--font-body);
+  padding:2px 0;width:110px;
+}
+.day-controls{display:flex;gap:6px;}
+.day-controls button{
+  background:none;border:none;color:var(--text-faint);
+  font-size:16px;cursor:pointer;padding:4px 6px;
+}
+.day-controls button:active{color:var(--danger);}
+
+.start-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;
+  background:var(--surface-2);
+  font-size:13px;color:var(--text-dim);
+}
+.start-row input[type=time]{
+  background:var(--bg);border:1px solid var(--line);color:var(--text);
+  border-radius:6px;padding:5px 8px;font-family:var(--font-display);font-size:14px;
+}
+
+/* Route / stops timeline */
+.stops{padding:6px 16px 16px;}
+.stop{position:relative;padding-left:34px;}
+.stop:last-child .connector{display:none;}
+.node{
+  position:absolute;left:0;top:2px;
+  width:22px;height:22px;
+  display:flex;align-items:center;justify-content:center;
+}
+.node .dot{
+  width:12px;height:12px;border-radius:50%;
+  background:var(--accent-stop);
+  border:2px solid var(--surface);
+  box-shadow:0 0 0 1.5px var(--accent-stop);
+}
+.stop.house .node .dot{
+  border-radius:3px;
+  background:var(--accent-house);
+  box-shadow:0 0 0 1.5px var(--accent-house);
+  transform:rotate(45deg);
+}
+.connector{
+  position:absolute;left:10px;top:20px;bottom:-14px;
+  width:2px;background:var(--line);
+}
+.segment{
+  margin-left:0;margin-bottom:10px;
+  font-size:11.5px;color:var(--text-faint);
+  display:flex;align-items:center;gap:8px;min-height:16px;
+  font-family:var(--font-display);
+}
+.segment .seg-line{flex:0 0 auto;color:var(--accent-route);}
+.segment input.manual-min{
+  width:46px;background:var(--surface-2);border:1px solid var(--line-soft);
+  color:var(--text-dim);border-radius:5px;padding:2px 4px;font-size:11px;text-align:center;
+  font-family:var(--font-body);
+}
+.segment .seg-edit-toggle{
+  color:var(--text-faint);cursor:pointer;text-decoration:underline dotted;
+  font-family:var(--font-body);
+}
+
+.stop-card{
+  background:var(--surface-2);
+  border:1px solid var(--line-soft);
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:6px;
+}
+.stop-top{display:flex;align-items:center;gap:8px;}
+input.stop-name{
+  flex:1;background:transparent;border:none;color:var(--text);
+  font-family:var(--font-body);font-weight:600;font-size:14.5px;padding:2px 0;min-width:0;
+}
+.stop-menu{display:flex;gap:2px;flex-shrink:0;}
+.stop-menu button{
+  background:none;border:none;color:var(--text-faint);font-size:14px;
+  padding:4px;cursor:pointer;
+}
+.stop-menu button:active{color:var(--text);}
+.geo-results{
+  margin-top:4px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+}
+.geo-results div{
+  padding:8px 10px;font-size:12.5px;color:var(--text-dim);
+  border-bottom:1px solid var(--line-soft);cursor:pointer;
+}
+.geo-results div:last-child{border-bottom:none;}
+.geo-results div:active{background:var(--surface-2);}
+
+.stop-meta{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:8px;flex-wrap:wrap;gap:8px;
+}
+.type-toggle{
+  display:flex;background:var(--bg);border-radius:7px;border:1px solid var(--line-soft);overflow:hidden;
+}
+.type-toggle button{
+  border:none;background:transparent;color:var(--text-faint);
+  font-size:11px;padding:5px 9px;cursor:pointer;font-family:var(--font-display);
+}
+.type-toggle button.active{background:var(--surface);color:var(--text);}
+.spend-wrap{display:flex;align-items:center;gap:6px;}
+.spend-wrap label{font-size:11px;color:var(--text-faint);}
+input.spend-min{
+  width:52px;background:var(--bg);border:1px solid var(--line-soft);color:var(--text);
+  border-radius:6px;padding:5px 6px;text-align:center;font-size:13px;font-family:var(--font-display);
+}
+.chips{display:flex;gap:4px;}
+.chip{
+  background:var(--bg);border:1px solid var(--line-soft);color:var(--text-faint);
+  font-size:10.5px;padding:4px 6px;border-radius:5px;cursor:pointer;font-family:var(--font-display);
+}
+.chip:active{background:var(--surface);}
+
+.times-row{
+  display:flex;gap:14px;margin-top:8px;
+  font-family:var(--font-display);font-size:12px;
+}
+.times-row .t-block .t-label{color:var(--text-faint);font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;}
+.times-row .t-block .t-value{color:var(--text);font-size:14px;font-weight:600;}
+.checkin-badge{
+  display:inline-block;margin-top:6px;
+  background:rgba(143,174,121,0.15);border:1px solid var(--accent-house);
+  color:var(--accent-house);
+  padding:5px 10px;border-radius:7px;font-size:12px;font-family:var(--font-display);font-weight:600;
+}
+
+.add-stop-btn{
+  width:100%;margin-top:4px;
+  background:transparent;border:1.5px dashed var(--line);
+  color:var(--text-dim);border-radius:10px;padding:10px;
+  font-size:13px;cursor:pointer;font-family:var(--font-body);
+}
+.add-stop-btn:active{background:var(--surface-2);}
+
+.day-summary{
+  padding:10px 16px 14px;
+  border-top:1px solid var(--line-soft);
+  display:flex;gap:16px;flex-wrap:wrap;
+  font-size:11.5px;color:var(--text-dim);
+}
+.day-summary b{color:var(--text);font-family:var(--font-display);}
+
+.add-day-btn{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--line);
+  color:var(--text-dim);
+  border-radius:var(--radius);
+  padding:14px;font-size:14px;cursor:pointer;
+  font-family:var(--font-body);font-weight:500;
+  margin-bottom:24px;
+}
+.add-day-btn:active{background:var(--surface-2);}
+
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--text-faint);
+}
+.empty-state .mark-big{
+  width:20px;height:20px;background:var(--accent-stop);margin:0 auto 16px;
+  transform:rotate(45deg);border-radius:3px;
+}
+.empty-state h2{font-family:var(--font-display);color:var(--text);font-size:17px;margin:0 0 8px;}
+.empty-state p{font-size:13px;line-height:1.6;max-width:280px;margin:0 auto 18px;}
+
+.toast{
+  position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;
+  transform:translateX(-50%);
+  background:var(--surface-2);border:1px solid var(--line);
+  color:var(--text);padding:10px 16px;border-radius:20px;
+  font-size:13px;z-index:100;opacity:0;pointer-events:none;
+  transition:opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+/* Photo */
+.photo-row{
+  display:flex;align-items:center;gap:10px;margin-top:8px;
+}
+.photo-thumb{
+  width:52px;height:52px;border-radius:8px;object-fit:cover;
+  border:1px solid var(--line-soft);flex-shrink:0;cursor:pointer;
+  display:block;
+}
+.photo-add-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg);border:1px dashed var(--line);
+  color:var(--text-dim);border-radius:8px;padding:8px 12px;
+  font-size:12px;cursor:pointer;font-family:var(--font-body);
+}
+.photo-actions{display:flex;gap:6px;align-items:center;}
+.photo-actions button{
+  background:var(--bg);border:1px solid var(--line-soft);color:var(--text-faint);
+  border-radius:6px;padding:5px 8px;font-size:11px;cursor:pointer;font-family:var(--font-body);
+}
+.photo-actions button:active{color:var(--text);}
+
+.photo-modal{
+  position:fixed;inset:0;background:rgba(10,13,14,0.94);
+  z-index:200;display:none;align-items:center;justify-content:center;
+  padding:24px;padding-top:calc(24px + env(safe-area-inset-top));
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+}
+.photo-modal.show{display:flex;}
+.photo-modal img{
+  max-width:100%;max-height:100%;border-radius:10px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.5);
+}
+.photo-modal-close{
+  position:absolute;top:calc(18px + env(safe-area-inset-top));right:18px;
+  width:38px;height:38px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--line);color:var(--text);
+  font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="mark"></span>Itinerario</div>
+    <div class="trip-row">
+      <select id="tripSelect"></select>
+      <button class="icon-btn" id="newTripBtn" title="Nuovo viaggio">+</button>
+      <button class="icon-btn" id="renameTripBtn" title="Rinomina">✎</button>
+      <button class="icon-btn" id="deleteTripBtn" title="Elimina viaggio">🗑</button>
+    </div>
+    <details class="settings">
+      <summary>Impostazioni &amp; backup ▾</summary>
+      <div class="settings-body">
+        <p>Serve una API key gratuita di <a href="https://openrouteservice.org/dev/#/signup" target="_blank">OpenRouteService</a> per calcolare i tempi di guida (registrazione gratuita, 2000 richieste/giorno). Incollala qui sotto.</p>
+        <input class="field" id="orsKeyInput" placeholder="La tua ORS API key">
+        <div class="settings-actions">
+          <button class="btn-sm primary" id="saveKeyBtn">Salva key</button>
+          <button class="btn-sm" id="exportBtn">Esporta backup</button>
+          <button class="btn-sm" id="importBtn">Importa backup</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none">
+        </div>
+        <p style="margin-top:12px;">I dati restano salvati solo su questo telefono/browser. Le foto usano lo storage del dispositivo (spazio ampio, decine di screenshot senza problemi). Esporta un backup ogni tanto per non perderli: include anche le foto.</p>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main class="wrap" id="mainContent"></main>
+
+<div class="toast" id="toast"></div>
+
+<div class="photo-modal" id="photoModal">
+  <button class="photo-modal-close" id="photoModalClose">✕</button>
+  <img id="photoModalImg" src="" alt="Foto tappa">
+</div>
+
+<script>
+/* ---------------- State ---------------- */
+const STORAGE_KEY = 'tripPlannerState_v1';
+
+function defaultState(){
+  return { orsApiKey:'', activeTripId:null, trips:{}, routeCache:{} };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const s = JSON.parse(raw);
+    return Object.assign(defaultState(), s);
+  }catch(e){ return defaultState(); }
+}
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    toast('Spazio esaurito: elimina qualche foto per continuare a salvare');
+  }
+}
+let state = loadState();
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ---------------- Photo helper ---------------- */
+// Resizes/compresses an uploaded image client-side before storing,
+// keeping each photo small while still readable as a reference screenshot.
+function resizeImageFile(file, maxDim=900, quality=0.72){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('read failed'));
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('decode failed'));
+      img.onload = ()=>{
+        let {width, height} = img;
+        if(width>height && width>maxDim){ height = Math.round(height*maxDim/width); width = maxDim; }
+        else if(height>=width && height>maxDim){ width = Math.round(width*maxDim/height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------------- Photo storage (IndexedDB) ----------------
+   Photos live in IndexedDB, not localStorage: localStorage caps out around
+   5MB on iOS Safari, which a few dozen screenshots would blow through.
+   IndexedDB's quota is tied to free disk space (effectively hundreds of MB+),
+   so it's the right place for a real "photo per stop" gallery.
+   Only a lightweight boolean (stop.hasPhoto) lives in the localStorage state;
+   the actual image bytes are looked up here by stop id. */
+const PHOTO_DB_NAME = 'tripPlannerPhotos';
+const PHOTO_STORE = 'photos';
+let _photoDbPromise = null;
+function openPhotoDB(){
+  if(_photoDbPromise) return _photoDbPromise;
+  _photoDbPromise = new Promise((resolve, reject)=>{
+    const req = indexedDB.open(PHOTO_DB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      req.result.createObjectStore(PHOTO_STORE);
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+  return _photoDbPromise;
+}
+async function savePhoto(stopId, dataUrl){
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    tx.objectStore(PHOTO_STORE).put(dataUrl, stopId);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function getPhoto(stopId){
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PHOTO_STORE, 'readonly');
+    const req = tx.objectStore(PHOTO_STORE).get(stopId);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function deletePhoto(stopId){
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    tx.objectStore(PHOTO_STORE).delete(stopId);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function getAllPhotos(){
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(PHOTO_STORE, 'readonly');
+    const store = tx.objectStore(PHOTO_STORE);
+    const result = {};
+    const req = store.openCursor();
+    req.onsuccess = (e)=>{
+      const cursor = e.target.result;
+      if(cursor){ result[cursor.key] = cursor.value; cursor.continue(); }
+      else resolve(result);
+    };
+    req.onerror = ()=>reject(req.error);
+  });
+}
+// In-memory cache so rendering (synchronous) can show a photo once it's been
+// fetched once from IndexedDB in this session, without re-fetching every render.
+const photoCache = {};
+
+// One-time migration: earlier versions stored the full base64 photo directly
+// on stop.photo inside localStorage. Move any such photos into IndexedDB.
+async function migrateInlinePhotos(){
+  let touched = false;
+  for(const trip of Object.values(state.trips)){
+    for(const day of trip.days){
+      for(const stop of day.stops){
+        if(stop.photo){
+          await savePhoto(stop.id, stop.photo);
+          photoCache[stop.id] = stop.photo;
+          stop.hasPhoto = true;
+          delete stop.photo;
+          touched = true;
+        }
+      }
+    }
+  }
+  if(touched){ saveState(); }
+}
+
+function ensureTrip(){
+  if(!state.activeTripId || !state.trips[state.activeTripId]){
+    const id = uid();
+    state.trips[id] = { id, name:'Il mio viaggio', days:[] };
+    state.activeTripId = id;
+    saveState();
+  }
+}
+ensureTrip();
+
+/* ---------------- Toast ---------------- */
+let toastTimer=null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+/* ---------------- Time helpers ---------------- */
+function timeToMinutes(t){
+  if(!t) return 8*60;
+  const [h,m] = t.split(':').map(Number);
+  return h*60+(m||0);
+}
+function minutesToTime(mins){
+  mins = ((mins % 1440)+1440)%1440;
+  const h = Math.floor(mins/60), m = Math.round(mins%60);
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+function fmtDuration(mins){
+  if(mins==null || isNaN(mins)) return '—';
+  const h = Math.floor(mins/60), m = Math.round(mins%60);
+  if(h<=0) return m+' min';
+  if(m===0) return h+' h';
+  return h+' h '+m+' min';
+}
+
+/* ---------------- Routing (OpenRouteService) ---------------- */
+function cacheKey(a,b){
+  return a.lat.toFixed(5)+','+a.lon.toFixed(5)+'|'+b.lat.toFixed(5)+','+b.lon.toFixed(5);
+}
+async function getDrivingSegment(a,b){
+  if(!a || !b || a.lat==null || b.lat==null) return null;
+  const key = cacheKey(a,b);
+  if(state.routeCache[key]) return state.routeCache[key];
+  if(!state.orsApiKey){ return {error:'no-key'}; }
+  try{
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${encodeURIComponent(state.orsApiKey)}&start=${a.lon},${a.lat}&end=${b.lon},${b.lat}`;
+    const res = await fetch(url);
+    if(!res.ok){ return {error:'http-'+res.status}; }
+    const data = await res.json();
+    const summary = data.features[0].properties.summary;
+    const result = { durationMin: summary.duration/60, distanceKm: summary.distance/1000 };
+    state.routeCache[key] = result;
+    saveState();
+    return result;
+  }catch(e){
+    return {error:'network'};
+  }
+}
+
+/* ---------------- Geocoding (Nominatim) ---------------- */
+async function geocodeSearch(query){
+  if(!query || query.trim().length<2) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=it`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) return [];
+    return await res.json();
+  }catch(e){ return []; }
+}
+
+/* ---------------- Model helpers ---------------- */
+function currentTrip(){ return state.trips[state.activeTripId]; }
+function newDay(trip){
+  const dayNum = trip.days.length+1;
+  return { id:uid(), label:'Giorno '+dayNum, date:'', startTime:'09:00', stops:[] };
+}
+function newStop(name='Nuova tappa', type='attraction'){
+  return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false };
+}
+
+/* ---------------- Timeline calc (sync part) ---------------- */
+function computeTimelineSync(day){
+  // returns array parallel to day.stops with {arrival, departure}
+  let t = timeToMinutes(day.startTime);
+  const out = [];
+  day.stops.forEach((s, i)=>{
+    if(i>0){
+      const prev = day.stops[i-1];
+      const key = (prev.lat!=null && s.lat!=null) ? cacheKey(prev,s) : null;
+      let travel = s.manualMin;
+      if(travel==null && key && state.routeCache[key]) travel = state.routeCache[key].durationMin;
+      if(travel==null) travel = 0;
+      t += travel;
+    }
+    const arrival = t;
+    t += Number(s.minutesSpend)||0;
+    out.push({ arrival, departure: t });
+  });
+  return out;
+}
+
+/* ---------------- Rendering ---------------- */
+const mainEl = document.getElementById('mainContent');
+const tripSelect = document.getElementById('tripSelect');
+
+function renderTripSelect(){
+  tripSelect.innerHTML = '';
+  Object.values(state.trips).forEach(tr=>{
+    const opt = document.createElement('option');
+    opt.value = tr.id; opt.textContent = tr.name;
+    if(tr.id===state.activeTripId) opt.selected = true;
+    tripSelect.appendChild(opt);
+  });
+}
+
+function render(){
+  renderTripSelect();
+  const trip = currentTrip();
+  mainEl.innerHTML = '';
+
+  if(trip.days.length===0){
+    const empty = document.createElement('div');
+    empty.className='empty-state';
+    empty.innerHTML = `<div class="mark-big"></div>
+      <h2>Nessun giorno ancora</h2>
+      <p>Aggiungi il primo giorno del viaggio: orario di partenza, tappe lungo il percorso, e la casa dove dormi la sera.</p>`;
+    mainEl.appendChild(empty);
+  }
+
+  trip.days.forEach((day, dayIndex)=>{
+    mainEl.appendChild(renderDayCard(trip, day, dayIndex));
+  });
+
+  const addDayBtn = document.createElement('button');
+  addDayBtn.className='add-day-btn';
+  addDayBtn.textContent = '+ Aggiungi giorno';
+  addDayBtn.onclick = ()=>{
+    trip.days.push(newDay(trip));
+    saveState(); render();
+  };
+  mainEl.appendChild(addDayBtn);
+}
+
+function renderDayCard(trip, day, dayIndex){
+  const card = document.createElement('div');
+  card.className='day-card';
+
+  const timeline = computeTimelineSync(day);
+
+  // Head
+  const head = document.createElement('div');
+  head.className='day-head';
+  head.innerHTML = `
+    <div class="day-title-wrap">
+      <span class="day-num">${String(dayIndex+1).padStart(2,'0')}</span>
+      <input class="day-label" value="${escapeAttr(day.label)}">
+      <input class="day-date" type="date" value="${escapeAttr(day.date)}">
+    </div>
+    <div class="day-controls">
+      <button data-act="up" title="Sposta su">↑</button>
+      <button data-act="down" title="Sposta giù">↓</button>
+      <button data-act="del" title="Elimina giorno">🗑</button>
+    </div>`;
+  head.querySelector('.day-label').oninput = (e)=>{ day.label=e.target.value; saveState(); };
+  head.querySelector('.day-date').oninput = (e)=>{ day.date=e.target.value; saveState(); };
+  head.querySelector('[data-act="up"]').onclick = ()=>{
+    if(dayIndex>0){ [trip.days[dayIndex-1],trip.days[dayIndex]]=[trip.days[dayIndex],trip.days[dayIndex-1]]; saveState(); render(); }
+  };
+  head.querySelector('[data-act="down"]').onclick = ()=>{
+    if(dayIndex<trip.days.length-1){ [trip.days[dayIndex+1],trip.days[dayIndex]]=[trip.days[dayIndex],trip.days[dayIndex+1]]; saveState(); render(); }
+  };
+  head.querySelector('[data-act="del"]').onclick = ()=>{
+    if(confirm('Eliminare "'+day.label+'"?')){
+      day.stops.forEach(s=>{ if(s.hasPhoto){ deletePhoto(s.id); delete photoCache[s.id]; } });
+      trip.days.splice(dayIndex,1); saveState(); render();
+    }
+  };
+  card.appendChild(head);
+
+  // Start row
+  const startRow = document.createElement('div');
+  startRow.className='start-row';
+  startRow.innerHTML = `Partenza / check-out: <input type="time" value="${escapeAttr(day.startTime)}">`;
+  startRow.querySelector('input').onchange = (e)=>{ day.startTime=e.target.value; saveState(); render(); };
+  card.appendChild(startRow);
+
+  // Stops
+  const stopsWrap = document.createElement('div');
+  stopsWrap.className='stops';
+
+  day.stops.forEach((stop, si)=>{
+    stopsWrap.appendChild(renderSegment(day, stop, si));
+    stopsWrap.appendChild(renderStop(trip, day, stop, si, timeline[si]));
+  });
+
+  const addStopBtn = document.createElement('button');
+  addStopBtn.className='add-stop-btn';
+  addStopBtn.textContent = '+ Aggiungi tappa (attrazione o casa)';
+  addStopBtn.onclick = ()=>{
+    day.stops.push(newStop());
+    saveState(); render();
+  };
+  stopsWrap.appendChild(addStopBtn);
+  card.appendChild(stopsWrap);
+
+  // Summary
+  if(day.stops.length>0){
+    let totalTravel=0, totalKm=0, totalStop=0;
+    day.stops.forEach((s,i)=>{
+      totalStop += Number(s.minutesSpend)||0;
+      if(i>0){
+        const prev = day.stops[i-1];
+        const key = (prev.lat!=null && s.lat!=null) ? cacheKey(prev,s) : null;
+        let travel = s.manualMin;
+        let km = null;
+        if(travel==null && key && state.routeCache[key]){ travel = state.routeCache[key].durationMin; km = state.routeCache[key].distanceKm; }
+        if(travel!=null) totalTravel += travel;
+        if(km!=null) totalKm += km;
+      }
+    });
+    const summary = document.createElement('div');
+    summary.className='day-summary';
+    summary.innerHTML = `
+      <span>Guida: <b>${fmtDuration(totalTravel)}</b></span>
+      <span>Distanza: <b>${totalKm? totalKm.toFixed(0)+' km':'—'}</b></span>
+      <span>Soste: <b>${fmtDuration(totalStop)}</b></span>`;
+    card.appendChild(summary);
+  }
+
+  return card;
+}
+
+function renderSegment(day, stop, si){
+  const seg = document.createElement('div');
+  seg.className='segment';
+  if(si===0){
+    seg.innerHTML = `<span class="seg-line">⌂</span> punto di partenza del giorno`;
+    return seg;
+  }
+  const prev = day.stops[si-1];
+  const key = (prev.lat!=null && stop.lat!=null) ? cacheKey(prev,stop) : null;
+  const cached = key ? state.routeCache[key] : null;
+  const manual = stop.manualMin;
+
+  let label;
+  if(manual!=null){
+    label = fmtDuration(manual)+' (manuale)';
+  } else if(cached){
+    label = fmtDuration(cached.durationMin)+' · '+cached.distanceKm.toFixed(0)+' km';
+  } else if(!prev.lat || !stop.lat){
+    label = 'imposta le coordinate di entrambe le tappe';
+  } else if(!state.orsApiKey){
+    label = 'aggiungi la API key nelle impostazioni';
+  } else {
+    label = 'calcolo…';
+    // trigger async fetch
+    getDrivingSegment(prev, stop).then(r=>{
+      render();
+    });
+  }
+
+  seg.innerHTML = `<span class="seg-line">↓ ${label}</span>`;
+  const editToggle = document.createElement('span');
+  editToggle.className='seg-edit-toggle';
+  editToggle.textContent = manual!=null ? 'auto' : 'manuale';
+  editToggle.onclick = ()=>{
+    if(manual!=null){ stop.manualMin=null; }
+    else{ const v = prompt('Minuti di guida manuali:', cached?Math.round(cached.durationMin):''); if(v!==null && v!==''){ stop.manualMin = Number(v); } }
+    saveState(); render();
+  };
+  seg.appendChild(editToggle);
+  return seg;
+}
+
+function renderStop(trip, day, stop, si, times){
+  const wrap = document.createElement('div');
+  wrap.className = 'stop'+(stop.type==='house' ? ' house' : '');
+  wrap.innerHTML = `<div class="node"><span class="dot"></span></div><div class="connector"></div>`;
+
+  const card = document.createElement('div');
+  card.className='stop-card';
+
+  const top = document.createElement('div');
+  top.className='stop-top';
+  top.innerHTML = `<input class="stop-name" value="${escapeAttr(stop.name)}" placeholder="Cerca un luogo…">
+    <div class="stop-menu">
+      <button data-act="up" title="Sposta su">↑</button>
+      <button data-act="down" title="Sposta giù">↓</button>
+      <button data-act="del" title="Rimuovi">✕</button>
+    </div>`;
+  const nameInput = top.querySelector('.stop-name');
+  let geoTimer=null;
+  const geoResultsDiv = document.createElement('div');
+  geoResultsDiv.className='geo-results';
+  geoResultsDiv.style.display='none';
+
+  nameInput.oninput = (e)=>{
+    stop.name = e.target.value;
+    saveState();
+    clearTimeout(geoTimer);
+    const q = e.target.value;
+    geoTimer = setTimeout(async ()=>{
+      const results = await geocodeSearch(q);
+      if(results.length===0){ geoResultsDiv.style.display='none'; return; }
+      geoResultsDiv.innerHTML='';
+      results.forEach(r=>{
+        const item = document.createElement('div');
+        item.textContent = r.display_name;
+        item.onclick = ()=>{
+          stop.lat = parseFloat(r.lat);
+          stop.lon = parseFloat(r.lon);
+          const shortName = r.display_name.split(',')[0];
+          stop.name = shortName;
+          saveState();
+          render();
+        };
+        geoResultsDiv.appendChild(item);
+      });
+      geoResultsDiv.style.display='block';
+    }, 500);
+  };
+  top.querySelector('[data-act="up"]').onclick = ()=>{
+    if(si>0){ [day.stops[si-1],day.stops[si]]=[day.stops[si],day.stops[si-1]]; saveState(); render(); }
+  };
+  top.querySelector('[data-act="down"]').onclick = ()=>{
+    if(si<day.stops.length-1){ [day.stops[si+1],day.stops[si]]=[day.stops[si],day.stops[si+1]]; saveState(); render(); }
+  };
+  top.querySelector('[data-act="del"]').onclick = ()=>{
+    if(stop.hasPhoto){ deletePhoto(stop.id); delete photoCache[stop.id]; }
+    day.stops.splice(si,1); saveState(); render();
+  };
+  card.appendChild(top);
+  if(stop.lat!=null){
+    const coordNote = document.createElement('div');
+    coordNote.style.cssText='font-size:10.5px;color:var(--text-faint);margin-top:2px;';
+    coordNote.textContent = '📍 '+stop.lat.toFixed(4)+', '+stop.lon.toFixed(4);
+    card.appendChild(coordNote);
+  }
+  card.appendChild(geoResultsDiv);
+
+  const meta = document.createElement('div');
+  meta.className='stop-meta';
+  meta.innerHTML = `
+    <div class="type-toggle">
+      <button data-type="attraction" class="${stop.type==='attraction'?'active':''}">Tappa</button>
+      <button data-type="house" class="${stop.type==='house'?'active':''}">Casa</button>
+    </div>
+    <div class="spend-wrap">
+      <label>tempo lì</label>
+      <input class="spend-min" type="number" min="0" step="5" value="${stop.minutesSpend}">
+      <span style="font-size:11px;color:var(--text-faint);">min</span>
+    </div>`;
+  meta.querySelectorAll('.type-toggle button').forEach(b=>{
+    b.onclick = ()=>{ stop.type = b.dataset.type; saveState(); render(); };
+  });
+  const spendInput = meta.querySelector('.spend-min');
+  spendInput.onchange = (e)=>{ stop.minutesSpend = Number(e.target.value)||0; saveState(); render(); };
+  card.appendChild(meta);
+
+  const chips = document.createElement('div');
+  chips.className='chips';
+  chips.style.marginTop='6px';
+  [15,30,60,120].forEach(m=>{
+    const c = document.createElement('span');
+    c.className='chip';
+    c.textContent = '+'+(m<60? m+'m' : (m/60)+'h');
+    c.onclick = ()=>{ stop.minutesSpend = (Number(stop.minutesSpend)||0)+m; saveState(); render(); };
+    chips.appendChild(c);
+  });
+  const resetChip = document.createElement('span');
+  resetChip.className='chip';
+  resetChip.textContent='reset';
+  resetChip.onclick = ()=>{ stop.minutesSpend=0; saveState(); render(); };
+  chips.appendChild(resetChip);
+  card.appendChild(chips);
+
+  card.appendChild(renderPhotoRow(stop));
+
+  const timesRow = document.createElement('div');
+  timesRow.className='times-row';
+  const isLast = si===day.stops.length-1;
+  timesRow.innerHTML = `
+    <div class="t-block"><div class="t-label">Arrivo</div><div class="t-value">${minutesToTime(times.arrival)}</div></div>
+    ${!isLast? `<div class="t-block"><div class="t-label">Partenza</div><div class="t-value">${minutesToTime(times.departure)}</div></div>` : ''}
+  `;
+  card.appendChild(timesRow);
+
+  if(isLast && stop.type==='house'){
+    const badge = document.createElement('div');
+    badge.className='checkin-badge';
+    badge.textContent = '🏠 Check-in stimato: '+minutesToTime(times.arrival);
+    card.appendChild(badge);
+  }
+
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function renderPhotoRow(stop){
+  const row = document.createElement('div');
+  row.className='photo-row';
+
+  const fileInput = document.createElement('input');
+  fileInput.type='file';
+  fileInput.accept='image/*';
+  fileInput.style.display='none';
+  fileInput.onchange = async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      toast('Carico la foto…');
+      const dataUrl = await resizeImageFile(file);
+      await savePhoto(stop.id, dataUrl);
+      photoCache[stop.id] = dataUrl;
+      stop.hasPhoto = true;
+      saveState();
+      render();
+    }catch(err){
+      toast('Impossibile caricare la foto');
+    }
+  };
+  row.appendChild(fileInput);
+
+  if(stop.hasPhoto){
+    if(photoCache[stop.id]){
+      const thumb = document.createElement('img');
+      thumb.className='photo-thumb';
+      thumb.src = photoCache[stop.id];
+      thumb.onclick = ()=>openPhotoModal(photoCache[stop.id]);
+      row.appendChild(thumb);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className='photo-thumb';
+      placeholder.style.cssText='display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-faint);';
+      placeholder.textContent = '…';
+      row.appendChild(placeholder);
+      getPhoto(stop.id).then(dataUrl=>{
+        if(dataUrl){ photoCache[stop.id] = dataUrl; render(); }
+      });
+    }
+
+    const actions = document.createElement('div');
+    actions.className='photo-actions';
+    const replaceBtn = document.createElement('button');
+    replaceBtn.textContent='Sostituisci';
+    replaceBtn.onclick = ()=>fileInput.click();
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent='Rimuovi';
+    removeBtn.onclick = async ()=>{
+      await deletePhoto(stop.id);
+      delete photoCache[stop.id];
+      stop.hasPhoto = false;
+      saveState(); render();
+    };
+    actions.appendChild(replaceBtn);
+    actions.appendChild(removeBtn);
+    row.appendChild(actions);
+  } else {
+    const addBtn = document.createElement('button');
+    addBtn.className='photo-add-btn';
+    addBtn.type='button';
+    addBtn.textContent = '📷 Aggiungi foto';
+    addBtn.onclick = ()=>fileInput.click();
+    row.appendChild(addBtn);
+  }
+
+  return row;
+}
+
+function openPhotoModal(src){
+  document.getElementById('photoModalImg').src = src;
+  document.getElementById('photoModal').classList.add('show');
+}
+function closePhotoModal(){
+  document.getElementById('photoModal').classList.remove('show');
+  document.getElementById('photoModalImg').src='';
+}
+document.getElementById('photoModalClose').onclick = closePhotoModal;
+document.getElementById('photoModal').onclick = (e)=>{
+  if(e.target.id==='photoModal') closePhotoModal();
+};
+
+function escapeAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+/* ---------------- Header actions ---------------- */
+document.getElementById('tripSelect').onchange = (e)=>{
+  state.activeTripId = e.target.value; saveState(); render();
+};
+document.getElementById('newTripBtn').onclick = ()=>{
+  const name = prompt('Nome del nuovo viaggio:', 'Nuovo viaggio');
+  if(!name) return;
+  const id = uid();
+  state.trips[id] = { id, name, days:[] };
+  state.activeTripId = id;
+  saveState(); render();
+};
+document.getElementById('renameTripBtn').onclick = ()=>{
+  const trip = currentTrip();
+  const name = prompt('Nuovo nome:', trip.name);
+  if(!name) return;
+  trip.name = name; saveState(); render();
+};
+document.getElementById('deleteTripBtn').onclick = ()=>{
+  const trip = currentTrip();
+  if(Object.keys(state.trips).length<=1){ toast('Deve rimanere almeno un viaggio'); return; }
+  if(confirm('Eliminare definitivamente "'+trip.name+'" e tutti i suoi giorni?')){
+    trip.days.forEach(day=>day.stops.forEach(s=>{
+      if(s.hasPhoto){ deletePhoto(s.id); delete photoCache[s.id]; }
+    }));
+    delete state.trips[trip.id];
+    state.activeTripId = Object.keys(state.trips)[0];
+    saveState(); render();
+  }
+};
+
+/* ---------------- Settings actions ---------------- */
+document.getElementById('orsKeyInput').value = state.orsApiKey || '';
+document.getElementById('saveKeyBtn').onclick = ()=>{
+  state.orsApiKey = document.getElementById('orsKeyInput').value.trim();
+  saveState();
+  toast('API key salvata');
+  render();
+};
+document.getElementById('exportBtn').onclick = async ()=>{
+  toast('Preparo il backup…');
+  const photos = await getAllPhotos();
+  const bundle = { state, photos };
+  const blob = new Blob([JSON.stringify(bundle)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'itinerario-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('importBtn').onclick = ()=>{
+  document.getElementById('importFile').click();
+};
+document.getElementById('importFile').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      // Support both the new {state, photos} bundle and older exports that were just the state object.
+      const importedState = parsed.state ? parsed.state : parsed;
+      const importedPhotos = parsed.photos || {};
+      if(!importedState.trips) throw new Error('formato non valido');
+      state = Object.assign(defaultState(), importedState);
+      for(const [stopId, dataUrl] of Object.entries(importedPhotos)){
+        await savePhoto(stopId, dataUrl);
+        photoCache[stopId] = dataUrl;
+      }
+      await migrateInlinePhotos();
+      saveState();
+      document.getElementById('orsKeyInput').value = state.orsApiKey || '';
+      toast('Backup importato');
+      render();
+    }catch(err){
+      alert('File non valido: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+};
+
+/* ---------------- Init ---------------- */
+migrateInlinePhotos().then(render);
+render();
+</script>
+</body>
+</html>
