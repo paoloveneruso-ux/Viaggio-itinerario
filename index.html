@@ -401,28 +401,6 @@ input.spend-min{
   background:var(--surface);border:1px solid var(--line);color:var(--text);
   font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
 }
-
-/* Parking */
-.parking-row{margin-top:8px;}
-.parking-check-btn{
-  background:var(--bg);border:1px dashed var(--line);color:var(--text-dim);
-  border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;font-family:var(--font-body);
-}
-.parking-pill{
-  display:inline-flex;align-items:center;gap:6px;
-  border-radius:7px;padding:5px 10px;font-size:12px;font-family:var(--font-display);font-weight:600;
-}
-.parking-pill.paid{background:rgba(203,131,84,0.15);border:1px solid var(--accent-stop);color:var(--accent-stop);}
-.parking-pill.free{background:rgba(143,174,121,0.15);border:1px solid var(--accent-house);color:var(--accent-house);}
-.parking-pill.unknown, .parking-pill.none{background:var(--surface-2);border:1px solid var(--line-soft);color:var(--text-dim);}
-.parking-recheck{
-  margin-left:8px;font-size:11px;color:var(--text-faint);text-decoration:underline dotted;cursor:pointer;
-}
-.parking-note-input{
-  width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line-soft);color:var(--text);
-  border-radius:7px;padding:7px 9px;font-size:12px;font-family:var(--font-body);
-}
-.parking-source{font-size:10px;color:var(--text-faint);margin-top:4px;}
 </style>
 </head>
 <body>
@@ -665,25 +643,6 @@ async function getDrivingSegment(a,b){
   }
 }
 
-/* ---------------- Parking check (OpenStreetMap Overpass) ----------------
-   Looks for mapped parking near a stop's coordinates and reads OSM's
-   "fee" tag when present. OSM coverage varies by area, so this is a
-   time-saving first pass, not a guarantee — the note field lets you
-   record what you find out for real. */
-async function checkParkingNearby(lat, lon){
-  const query = `[out:json][timeout:15];(node["amenity"="parking"](around:400,${lat},${lon});way["amenity"="parking"](around:400,${lat},${lon}););out tags center 15;`;
-  const res = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body: query });
-  if(!res.ok) throw new Error('overpass http '+res.status);
-  const data = await res.json();
-  const els = data.elements || [];
-  if(els.length===0) return { status:'none', charge:null };
-  const paid = els.find(e=>e.tags && e.tags.fee==='yes');
-  const free = els.find(e=>e.tags && e.tags.fee==='no');
-  if(paid) return { status:'paid', charge: paid.tags.charge || paid.tags.fee_note || null };
-  if(free) return { status:'free', charge:null };
-  return { status:'unknown', charge:null };
-}
-
 /* ---------------- Geocoding (Nominatim) ---------------- */
 async function geocodeSearch(query){
   if(!query || query.trim().length<2) return [];
@@ -702,8 +661,7 @@ function newDay(trip){
   return { id:uid(), label:'Giorno '+dayNum, date:'', startTime:'09:00', stops:[] };
 }
 function newStop(name='Nuova tappa', type='attraction'){
-  return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false,
-    active:true, parkingStatus:null, parkingNote:'', parkingCheckedAt:null };
+  return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false, active:true };
 }
 
 function findPrevActiveStop(day, si){
@@ -1037,7 +995,6 @@ function renderStop(trip, day, stop, si, times){
   card.appendChild(chips);
 
   card.appendChild(renderPhotoRow(stop));
-  card.appendChild(renderParkingRow(stop));
 
   const timesRow = document.createElement('div');
   timesRow.className='times-row';
@@ -1057,76 +1014,6 @@ function renderStop(trip, day, stop, si, times){
 
   wrap.appendChild(card);
   return wrap;
-}
-
-function renderParkingRow(stop){
-  const row = document.createElement('div');
-  row.className='parking-row';
-
-  if(!stop.parkingStatus){
-    const btn = document.createElement('button');
-    btn.className='parking-check-btn';
-    btn.type='button';
-    btn.textContent = stop.lat!=null ? '🅿️ Verifica parcheggio (OpenStreetMap)' : '🅿️ Cerca prima il luogo per verificare il parcheggio';
-    btn.disabled = stop.lat==null;
-    btn.onclick = async ()=>{
-      toast('Controllo parcheggi nelle vicinanze…');
-      try{
-        const r = await checkParkingNearby(stop.lat, stop.lon);
-        stop.parkingStatus = r.status;
-        if(r.charge && !stop.parkingNote) stop.parkingNote = 'Tariffa su OSM: '+r.charge;
-        stop.parkingCheckedAt = new Date().toISOString();
-        saveState(); render();
-      }catch(e){
-        toast('Controllo non riuscito, riprova');
-      }
-    };
-    row.appendChild(btn);
-    return row;
-  }
-
-  const labels = {
-    paid: {cls:'paid', text:'🅿️ A pagamento (OSM)'},
-    free: {cls:'free', text:'🅿️ Gratuito (OSM)'},
-    unknown: {cls:'unknown', text:'🅿️ Presente, tariffa non indicata'},
-    none: {cls:'none', text:'🅿️ Nessun parcheggio mappato entro 400m'}
-  };
-  const info = labels[stop.parkingStatus] || labels.unknown;
-
-  const pillRow = document.createElement('div');
-  const pill = document.createElement('span');
-  pill.className = 'parking-pill '+info.cls;
-  pill.textContent = info.text;
-  pillRow.appendChild(pill);
-  const recheck = document.createElement('span');
-  recheck.className='parking-recheck';
-  recheck.textContent='ricontrolla';
-  recheck.onclick = async ()=>{
-    toast('Ricontrollo…');
-    try{
-      const r = await checkParkingNearby(stop.lat, stop.lon);
-      stop.parkingStatus = r.status;
-      stop.parkingCheckedAt = new Date().toISOString();
-      saveState(); render();
-    }catch(e){ toast('Controllo non riuscito, riprova'); }
-  };
-  pillRow.appendChild(recheck);
-  row.appendChild(pillRow);
-
-  const noteInput = document.createElement('input');
-  noteInput.className='parking-note-input';
-  noteInput.placeholder='Nota parcheggio (facoltativa, tua o da altra fonte)';
-  noteInput.value = stop.parkingNote || '';
-  noteInput.onchange = (e)=>{ stop.parkingNote = e.target.value; saveState(); };
-  row.appendChild(noteInput);
-
-  const source = document.createElement('div');
-  source.className='parking-source';
-  const when = stop.parkingCheckedAt ? new Date(stop.parkingCheckedAt).toLocaleDateString('it-IT') : '';
-  source.textContent = 'Dati OpenStreetMap'+(when?(' · controllato il '+when):'')+' — copertura non garantita, verifica sul posto per parcheggi importanti.';
-  row.appendChild(source);
-
-  return row;
 }
 
 function renderPhotoRow(stop){
