@@ -312,6 +312,16 @@ input.spend-min{
 }
 .add-stop-btn:active{background:var(--surface-2);}
 
+.inactive-row .node .dot{background:var(--text-faint);box-shadow:0 0 0 1.5px var(--text-faint);}
+.inactive-box{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 12px;margin-bottom:6px;
+  background:var(--surface);border:1px dashed var(--line);border-radius:10px;
+}
+.inactive-name{font-size:13.5px;color:var(--text-faint);text-decoration:line-through;}
+.inactive-tag{font-size:10.5px;color:var(--text-faint);font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.06em;}
+.inactive-box .btn-sm{margin-left:auto;}
+
 .day-summary{
   padding:10px 16px 14px;
   border-top:1px solid var(--line-soft);
@@ -391,6 +401,28 @@ input.spend-min{
   background:var(--surface);border:1px solid var(--line);color:var(--text);
   font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
 }
+
+/* Parking */
+.parking-row{margin-top:8px;}
+.parking-check-btn{
+  background:var(--bg);border:1px dashed var(--line);color:var(--text-dim);
+  border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;font-family:var(--font-body);
+}
+.parking-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  border-radius:7px;padding:5px 10px;font-size:12px;font-family:var(--font-display);font-weight:600;
+}
+.parking-pill.paid{background:rgba(203,131,84,0.15);border:1px solid var(--accent-stop);color:var(--accent-stop);}
+.parking-pill.free{background:rgba(143,174,121,0.15);border:1px solid var(--accent-house);color:var(--accent-house);}
+.parking-pill.unknown, .parking-pill.none{background:var(--surface-2);border:1px solid var(--line-soft);color:var(--text-dim);}
+.parking-recheck{
+  margin-left:8px;font-size:11px;color:var(--text-faint);text-decoration:underline dotted;cursor:pointer;
+}
+.parking-note-input{
+  width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line-soft);color:var(--text);
+  border-radius:7px;padding:7px 9px;font-size:12px;font-family:var(--font-body);
+}
+.parking-source{font-size:10px;color:var(--text-faint);margin-top:4px;}
 </style>
 </head>
 <body>
@@ -633,6 +665,25 @@ async function getDrivingSegment(a,b){
   }
 }
 
+/* ---------------- Parking check (OpenStreetMap Overpass) ----------------
+   Looks for mapped parking near a stop's coordinates and reads OSM's
+   "fee" tag when present. OSM coverage varies by area, so this is a
+   time-saving first pass, not a guarantee — the note field lets you
+   record what you find out for real. */
+async function checkParkingNearby(lat, lon){
+  const query = `[out:json][timeout:15];(node["amenity"="parking"](around:400,${lat},${lon});way["amenity"="parking"](around:400,${lat},${lon}););out tags center 15;`;
+  const res = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body: query });
+  if(!res.ok) throw new Error('overpass http '+res.status);
+  const data = await res.json();
+  const els = data.elements || [];
+  if(els.length===0) return { status:'none', charge:null };
+  const paid = els.find(e=>e.tags && e.tags.fee==='yes');
+  const free = els.find(e=>e.tags && e.tags.fee==='no');
+  if(paid) return { status:'paid', charge: paid.tags.charge || paid.tags.fee_note || null };
+  if(free) return { status:'free', charge:null };
+  return { status:'unknown', charge:null };
+}
+
 /* ---------------- Geocoding (Nominatim) ---------------- */
 async function geocodeSearch(query){
   if(!query || query.trim().length<2) return [];
@@ -651,28 +702,50 @@ function newDay(trip){
   return { id:uid(), label:'Giorno '+dayNum, date:'', startTime:'09:00', stops:[] };
 }
 function newStop(name='Nuova tappa', type='attraction'){
-  return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false };
+  return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false,
+    active:true, parkingStatus:null, parkingNote:'', parkingCheckedAt:null };
 }
 
-/* ---------------- Timeline calc (sync part) ---------------- */
-function computeTimelineSync(day){
-  // returns array parallel to day.stops with {arrival, departure}
+function findPrevActiveStop(day, si){
+  for(let i=si-1;i>=0;i--){ if(day.stops[i].active!==false) return day.stops[i]; }
+  return null;
+}
+
+function travelBetween(prev, s){
+  // Returns {minutes, km} using manual override, then route cache, else nulls.
+  if(!prev) return {minutes:0, km:null};
+  const key = (prev.lat!=null && s.lat!=null) ? cacheKey(prev,s) : null;
+  let minutes = s.manualMin;
+  let km = null;
+  if(minutes==null && key && state.routeCache[key]){ minutes = state.routeCache[key].durationMin; km = state.routeCache[key].distanceKm; }
+  if(minutes==null) minutes = 0;
+  return {minutes, km};
+}
+
+/* ---------------- Timeline calc (sync part) ----------------
+   Inactive stops (toggled off) are skipped entirely: travel is computed
+   directly between the nearest active neighbours, so you can flip a stop
+   on/off and immediately see how the day's total time changes. */
+function computeDayStats(day){
+  const activeIdx = day.stops.map((s,i)=>i).filter(i=>day.stops[i].active!==false);
   let t = timeToMinutes(day.startTime);
-  const out = [];
-  day.stops.forEach((s, i)=>{
-    if(i>0){
-      const prev = day.stops[i-1];
-      const key = (prev.lat!=null && s.lat!=null) ? cacheKey(prev,s) : null;
-      let travel = s.manualMin;
-      if(travel==null && key && state.routeCache[key]) travel = state.routeCache[key].durationMin;
-      if(travel==null) travel = 0;
-      t += travel;
+  const timesById = {};
+  let totalTravel=0, totalKm=0, totalStop=0;
+  activeIdx.forEach((idx,k)=>{
+    const s = day.stops[idx];
+    if(k>0){
+      const prev = day.stops[activeIdx[k-1]];
+      const {minutes, km} = travelBetween(prev, s);
+      t += minutes;
+      totalTravel += minutes;
+      if(km!=null) totalKm += km;
     }
     const arrival = t;
     t += Number(s.minutesSpend)||0;
-    out.push({ arrival, departure: t });
+    totalStop += Number(s.minutesSpend)||0;
+    timesById[s.id] = { arrival, departure: t };
   });
-  return out;
+  return { timesById, totalTravel, totalKm, totalStop, activeIdx };
 }
 
 /* ---------------- Rendering ---------------- */
@@ -721,7 +794,7 @@ function renderDayCard(trip, day, dayIndex){
   const card = document.createElement('div');
   card.className='day-card';
 
-  const timeline = computeTimelineSync(day);
+  const stats = computeDayStats(day);
 
   // Head
   const head = document.createElement('div');
@@ -765,8 +838,12 @@ function renderDayCard(trip, day, dayIndex){
   stopsWrap.className='stops';
 
   day.stops.forEach((stop, si)=>{
-    stopsWrap.appendChild(renderSegment(day, stop, si));
-    stopsWrap.appendChild(renderStop(trip, day, stop, si, timeline[si]));
+    if(stop.active===false){
+      stopsWrap.appendChild(renderInactiveStopRow(day, stop, si));
+    } else {
+      stopsWrap.appendChild(renderSegment(day, stop, si));
+      stopsWrap.appendChild(renderStop(trip, day, stop, si, stats.timesById[stop.id]));
+    }
   });
 
   const addStopBtn = document.createElement('button');
@@ -781,39 +858,44 @@ function renderDayCard(trip, day, dayIndex){
 
   // Summary
   if(day.stops.length>0){
-    let totalTravel=0, totalKm=0, totalStop=0;
-    day.stops.forEach((s,i)=>{
-      totalStop += Number(s.minutesSpend)||0;
-      if(i>0){
-        const prev = day.stops[i-1];
-        const key = (prev.lat!=null && s.lat!=null) ? cacheKey(prev,s) : null;
-        let travel = s.manualMin;
-        let km = null;
-        if(travel==null && key && state.routeCache[key]){ travel = state.routeCache[key].durationMin; km = state.routeCache[key].distanceKm; }
-        if(travel!=null) totalTravel += travel;
-        if(km!=null) totalKm += km;
-      }
-    });
+    const disabledCount = day.stops.length - stats.activeIdx.length;
     const summary = document.createElement('div');
     summary.className='day-summary';
     summary.innerHTML = `
-      <span>Guida: <b>${fmtDuration(totalTravel)}</b></span>
-      <span>Distanza: <b>${totalKm? totalKm.toFixed(0)+' km':'—'}</b></span>
-      <span>Soste: <b>${fmtDuration(totalStop)}</b></span>`;
+      <span>Guida: <b>${fmtDuration(stats.totalTravel)}</b></span>
+      <span>Distanza: <b>${stats.totalKm? stats.totalKm.toFixed(0)+' km':'—'}</b></span>
+      <span>Soste: <b>${fmtDuration(stats.totalStop)}</b></span>
+      ${disabledCount>0 ? `<span>${disabledCount} tappa/e esclusa/e</span>` : ''}`;
     card.appendChild(summary);
   }
 
   return card;
 }
 
+function renderInactiveStopRow(day, stop, si){
+  const wrap = document.createElement('div');
+  wrap.className = 'stop inactive-row';
+  wrap.innerHTML = `<div class="node"><span class="dot"></span></div><div class="connector"></div>`;
+  const box = document.createElement('div');
+  box.className = 'inactive-box';
+  box.innerHTML = `<span class="inactive-name">${escapeAttr(stop.name)}</span> <span class="inactive-tag">esclusa dal calcolo</span>`;
+  const reactivateBtn = document.createElement('button');
+  reactivateBtn.className = 'btn-sm';
+  reactivateBtn.textContent = 'Riattiva';
+  reactivateBtn.onclick = ()=>{ stop.active = true; saveState(); render(); };
+  box.appendChild(reactivateBtn);
+  wrap.appendChild(box);
+  return wrap;
+}
+
 function renderSegment(day, stop, si){
   const seg = document.createElement('div');
   seg.className='segment';
-  if(si===0){
+  const prev = findPrevActiveStop(day, si);
+  if(!prev){
     seg.innerHTML = `<span class="seg-line">⌂</span> punto di partenza del giorno`;
     return seg;
   }
-  const prev = day.stops[si-1];
   const key = (prev.lat!=null && stop.lat!=null) ? cacheKey(prev,stop) : null;
   const cached = key ? state.routeCache[key] : null;
   const manual = stop.manualMin;
@@ -862,6 +944,7 @@ function renderStop(trip, day, stop, si, times){
     <div class="stop-menu">
       <button data-act="up" title="Sposta su">↑</button>
       <button data-act="down" title="Sposta giù">↓</button>
+      <button data-act="toggle" title="Disattiva (escludi dal calcolo)">⊘</button>
       <button data-act="del" title="Rimuovi">✕</button>
     </div>`;
   const nameInput = top.querySelector('.stop-name');
@@ -900,6 +983,9 @@ function renderStop(trip, day, stop, si, times){
   };
   top.querySelector('[data-act="down"]').onclick = ()=>{
     if(si<day.stops.length-1){ [day.stops[si+1],day.stops[si]]=[day.stops[si],day.stops[si+1]]; saveState(); render(); }
+  };
+  top.querySelector('[data-act="toggle"]').onclick = ()=>{
+    stop.active = false; saveState(); render();
   };
   top.querySelector('[data-act="del"]').onclick = ()=>{
     if(stop.hasPhoto){ deletePhoto(stop.id); delete photoCache[stop.id]; }
@@ -951,6 +1037,7 @@ function renderStop(trip, day, stop, si, times){
   card.appendChild(chips);
 
   card.appendChild(renderPhotoRow(stop));
+  card.appendChild(renderParkingRow(stop));
 
   const timesRow = document.createElement('div');
   timesRow.className='times-row';
@@ -970,6 +1057,76 @@ function renderStop(trip, day, stop, si, times){
 
   wrap.appendChild(card);
   return wrap;
+}
+
+function renderParkingRow(stop){
+  const row = document.createElement('div');
+  row.className='parking-row';
+
+  if(!stop.parkingStatus){
+    const btn = document.createElement('button');
+    btn.className='parking-check-btn';
+    btn.type='button';
+    btn.textContent = stop.lat!=null ? '🅿️ Verifica parcheggio (OpenStreetMap)' : '🅿️ Cerca prima il luogo per verificare il parcheggio';
+    btn.disabled = stop.lat==null;
+    btn.onclick = async ()=>{
+      toast('Controllo parcheggi nelle vicinanze…');
+      try{
+        const r = await checkParkingNearby(stop.lat, stop.lon);
+        stop.parkingStatus = r.status;
+        if(r.charge && !stop.parkingNote) stop.parkingNote = 'Tariffa su OSM: '+r.charge;
+        stop.parkingCheckedAt = new Date().toISOString();
+        saveState(); render();
+      }catch(e){
+        toast('Controllo non riuscito, riprova');
+      }
+    };
+    row.appendChild(btn);
+    return row;
+  }
+
+  const labels = {
+    paid: {cls:'paid', text:'🅿️ A pagamento (OSM)'},
+    free: {cls:'free', text:'🅿️ Gratuito (OSM)'},
+    unknown: {cls:'unknown', text:'🅿️ Presente, tariffa non indicata'},
+    none: {cls:'none', text:'🅿️ Nessun parcheggio mappato entro 400m'}
+  };
+  const info = labels[stop.parkingStatus] || labels.unknown;
+
+  const pillRow = document.createElement('div');
+  const pill = document.createElement('span');
+  pill.className = 'parking-pill '+info.cls;
+  pill.textContent = info.text;
+  pillRow.appendChild(pill);
+  const recheck = document.createElement('span');
+  recheck.className='parking-recheck';
+  recheck.textContent='ricontrolla';
+  recheck.onclick = async ()=>{
+    toast('Ricontrollo…');
+    try{
+      const r = await checkParkingNearby(stop.lat, stop.lon);
+      stop.parkingStatus = r.status;
+      stop.parkingCheckedAt = new Date().toISOString();
+      saveState(); render();
+    }catch(e){ toast('Controllo non riuscito, riprova'); }
+  };
+  pillRow.appendChild(recheck);
+  row.appendChild(pillRow);
+
+  const noteInput = document.createElement('input');
+  noteInput.className='parking-note-input';
+  noteInput.placeholder='Nota parcheggio (facoltativa, tua o da altra fonte)';
+  noteInput.value = stop.parkingNote || '';
+  noteInput.onchange = (e)=>{ stop.parkingNote = e.target.value; saveState(); };
+  row.appendChild(noteInput);
+
+  const source = document.createElement('div');
+  source.className='parking-source';
+  const when = stop.parkingCheckedAt ? new Date(stop.parkingCheckedAt).toLocaleDateString('it-IT') : '';
+  source.textContent = 'Dati OpenStreetMap'+(when?(' · controllato il '+when):'')+' — copertura non garantita, verifica sul posto per parcheggi importanti.';
+  row.appendChild(source);
+
+  return row;
 }
 
 function renderPhotoRow(stop){
