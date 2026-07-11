@@ -418,6 +418,11 @@ input.spend-min{
   border-bottom:1px solid var(--line);position:relative;
 }
 .map-modal-head .photo-modal-close{position:static;width:32px;height:32px;font-size:15px;}
+.map-modal-name{padding:10px 16px;border-bottom:1px solid var(--line);}
+.map-modal-name input{
+  width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:9px 12px;font-size:14px;font-family:var(--font-body);
+}
 #mapPickerContainer{flex:1;width:100%;}
 .map-modal-foot{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -472,6 +477,9 @@ input.spend-min{
   <div class="map-modal-head">
     <span>Tocca la mappa per scegliere il punto</span>
     <button class="photo-modal-close" id="mapModalClose">✕</button>
+  </div>
+  <div class="map-modal-name">
+    <input type="text" id="mapPickerName" placeholder="Nome del luogo (es. Cascata sulla strada)">
   </div>
   <div id="mapPickerContainer"></div>
   <div class="map-modal-foot">
@@ -1176,6 +1184,8 @@ function openMapPicker(stop){
   document.getElementById('mapPickerCoords').textContent = stop.lat!=null
     ? stop.lat.toFixed(5)+', '+stop.lon.toFixed(5)
     : 'Nessun punto selezionato';
+  document.getElementById('mapPickerName').value =
+    (stop.name && stop.name !== 'Nuova tappa') ? stop.name : '';
 
   setTimeout(()=>{
     if(!mapPickerMap){
@@ -1228,6 +1238,8 @@ document.getElementById('mapPickerConfirm').onclick = ()=>{
   const p = mapPickerMarker.getLatLng();
   mapPickerStop.lat = p.lat;
   mapPickerStop.lon = p.lng;
+  const typedName = document.getElementById('mapPickerName').value.trim();
+  if(typedName) mapPickerStop.name = typedName;
   saveState();
   closeMapPicker();
   render();
