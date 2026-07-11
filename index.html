@@ -691,6 +691,54 @@ async function getDrivingSegment(a,b){
   }
 }
 
+/* Route fetches are queued and spaced out (rather than fired all at once)
+   to stay under OpenRouteService's free-tier limit (40 requests/minute) once
+   a trip has many stops. Failed lookups are remembered for a minute so a
+   patch of missing coverage doesn't get silently retried on every render. */
+const pendingRouteFetches = new Set();
+const routeFetchFailures = {};
+const routeFetchQueue = [];
+let routeQueueRunning = false;
+
+function enqueueRouteFetch(prev, stop, key){
+  if(pendingRouteFetches.has(key)) return;
+  pendingRouteFetches.add(key);
+  routeFetchQueue.push({prev, stop, key});
+  processRouteQueue();
+}
+async function processRouteQueue(){
+  if(routeQueueRunning) return;
+  routeQueueRunning = true;
+  while(routeFetchQueue.length>0){
+    const {prev, stop, key} = routeFetchQueue.shift();
+    if(state.routeCache[key]){ pendingRouteFetches.delete(key); continue; }
+    const r = await getDrivingSegment(prev, stop);
+    pendingRouteFetches.delete(key);
+    if(r && r.error){ routeFetchFailures[key] = Date.now(); }
+    else { delete routeFetchFailures[key]; }
+    scheduleRender();
+    if(routeFetchQueue.length>0) await new Promise(res=>setTimeout(res, 1500));
+  }
+  routeQueueRunning = false;
+}
+
+/* Rebuilding the whole page while someone is mid-keystroke in a text field
+   wipes their focus and typed text. scheduleRender waits for that field to
+   be blurred before actually re-rendering, instead of forcing it immediately. */
+let renderDebounceTimer = null;
+function scheduleRender(){
+  clearTimeout(renderDebounceTimer);
+  renderDebounceTimer = setTimeout(()=>{
+    const el = document.activeElement;
+    if(el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA')){
+      const reRun = ()=>{ el.removeEventListener('blur', reRun); render(); };
+      el.addEventListener('blur', reRun, {once:true});
+    } else {
+      render();
+    }
+  }, 150);
+}
+
 /* ---------------- Geocoding (OpenStreetMap / Nominatim) ---------------- */
 async function geocodeSearch(query){
   if(!query || query.trim().length<2) return [];
@@ -907,6 +955,7 @@ function renderSegment(day, stop, si){
   const manual = stop.manualMin;
 
   let label;
+  let showRetry = false;
   if(manual!=null){
     label = fmtDuration(manual)+' (manuale)';
   } else if(cached){
@@ -916,14 +965,31 @@ function renderSegment(day, stop, si){
   } else if(!state.orsApiKey){
     label = 'aggiungi la API key nelle impostazioni';
   } else {
-    label = 'calcolo…';
-    // trigger async fetch
-    getDrivingSegment(prev, stop).then(r=>{
-      render();
-    });
+    const lastFail = routeFetchFailures[key];
+    const cooldownActive = lastFail && (Date.now()-lastFail < 60000);
+    if(cooldownActive){
+      label = 'calcolo non riuscito';
+      showRetry = true;
+    } else {
+      label = pendingRouteFetches.has(key) ? 'in coda…' : 'calcolo…';
+      enqueueRouteFetch(prev, stop, key);
+    }
   }
 
   seg.innerHTML = `<span class="seg-line">↓ ${label}</span>`;
+
+  if(showRetry){
+    const retry = document.createElement('span');
+    retry.className='seg-edit-toggle';
+    retry.textContent = 'riprova ora';
+    retry.onclick = ()=>{
+      delete routeFetchFailures[key];
+      enqueueRouteFetch(prev, stop, key);
+      scheduleRender();
+    };
+    seg.appendChild(retry);
+  }
+
   const editToggle = document.createElement('span');
   editToggle.className='seg-edit-toggle';
   editToggle.textContent = manual!=null ? 'auto' : 'manuale';
@@ -1112,7 +1178,7 @@ function renderPhotoRow(stop){
       placeholder.textContent = '…';
       row.appendChild(placeholder);
       getPhoto(stop.id).then(dataUrl=>{
-        if(dataUrl){ photoCache[stop.id] = dataUrl; render(); }
+        if(dataUrl){ photoCache[stop.id] = dataUrl; scheduleRender(); }
       });
     }
 
