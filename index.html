@@ -159,6 +159,11 @@ input.field, textarea.field{
   border-bottom:1px solid var(--line-soft);
 }
 .day-title-wrap{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;}
+.collapse-toggle{
+  background:none;border:none;color:var(--text-faint);font-size:13px;
+  padding:2px 4px;cursor:pointer;flex-shrink:0;
+}
+.collapse-toggle:active{color:var(--text);}
 .day-num{
   font-family:var(--font-display);
   font-weight:700;
@@ -353,6 +358,8 @@ input.spend-min{
 }
 .empty-state h2{font-family:var(--font-display);color:var(--text);font-size:17px;margin:0 0 8px;}
 .empty-state p{font-size:13px;line-height:1.6;max-width:280px;margin:0 auto 18px;}
+
+.bulk-collapse-row{display:flex;gap:8px;margin-bottom:12px;}
 
 .toast{
   position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;
@@ -754,7 +761,7 @@ async function geocodeSearch(query){
 function currentTrip(){ return state.trips[state.activeTripId]; }
 function newDay(trip){
   const dayNum = trip.days.length+1;
-  return { id:uid(), label:'Giorno '+dayNum, date:'', startTime:'09:00', stops:[] };
+  return { id:uid(), label:'Giorno '+dayNum, date:'', startTime:'09:00', stops:[], collapsed:false };
 }
 function newStop(name='Nuova tappa', type='attraction'){
   return { id:uid(), name, type, lat:null, lon:null, minutesSpend:60, manualMin:null, hasPhoto:false, active:true };
@@ -830,6 +837,22 @@ function render(){
     mainEl.appendChild(empty);
   }
 
+  if(trip.days.length>1){
+    const bulkRow = document.createElement('div');
+    bulkRow.className='bulk-collapse-row';
+    const collapseAllBtn = document.createElement('button');
+    collapseAllBtn.className='btn-sm';
+    collapseAllBtn.textContent='Comprimi tutti';
+    collapseAllBtn.onclick = ()=>{ trip.days.forEach(d=>d.collapsed=true); saveState(); render(); };
+    const expandAllBtn = document.createElement('button');
+    expandAllBtn.className='btn-sm';
+    expandAllBtn.textContent='Espandi tutti';
+    expandAllBtn.onclick = ()=>{ trip.days.forEach(d=>d.collapsed=false); saveState(); render(); };
+    bulkRow.appendChild(collapseAllBtn);
+    bulkRow.appendChild(expandAllBtn);
+    mainEl.appendChild(bulkRow);
+  }
+
   trip.days.forEach((day, dayIndex)=>{
     mainEl.appendChild(renderDayCard(trip, day, dayIndex));
   });
@@ -855,6 +878,7 @@ function renderDayCard(trip, day, dayIndex){
   head.className='day-head';
   head.innerHTML = `
     <div class="day-title-wrap">
+      <button class="collapse-toggle" data-act="collapse" title="Comprimi/espandi">${day.collapsed?'▸':'▾'}</button>
       <span class="day-num">${String(dayIndex+1).padStart(2,'0')}</span>
       <input class="day-label" value="${escapeAttr(day.label)}">
       <input class="day-date" type="date" value="${escapeAttr(day.date)}">
@@ -866,6 +890,9 @@ function renderDayCard(trip, day, dayIndex){
     </div>`;
   head.querySelector('.day-label').oninput = (e)=>{ day.label=e.target.value; saveState(); };
   head.querySelector('.day-date').oninput = (e)=>{ day.date=e.target.value; saveState(); };
+  head.querySelector('[data-act="collapse"]').onclick = ()=>{
+    day.collapsed = !day.collapsed; saveState(); render();
+  };
   head.querySelector('[data-act="up"]').onclick = ()=>{
     if(dayIndex>0){ [trip.days[dayIndex-1],trip.days[dayIndex]]=[trip.days[dayIndex],trip.days[dayIndex-1]]; saveState(); render(); }
   };
@@ -879,6 +906,21 @@ function renderDayCard(trip, day, dayIndex){
     }
   };
   card.appendChild(head);
+
+  if(day.collapsed){
+    if(day.stops.length>0){
+      const disabledCount = day.stops.length - stats.activeIdx.length;
+      const summary = document.createElement('div');
+      summary.className='day-summary';
+      summary.innerHTML = `
+        <span>${day.stops.length} tappa/e</span>
+        <span>Guida: <b>${fmtDuration(stats.totalTravel)}</b></span>
+        <span>Soste: <b>${fmtDuration(stats.totalStop)}</b></span>
+        ${disabledCount>0 ? `<span>${disabledCount} esclusa/e</span>` : ''}`;
+      card.appendChild(summary);
+    }
+    return card;
+  }
 
   // Start row
   const startRow = document.createElement('div');
