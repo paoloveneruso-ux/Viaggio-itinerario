@@ -10,6 +10,8 @@
 <title>Itinerario di Viaggio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --bg:#12181A;
@@ -401,6 +403,32 @@ input.spend-min{
   background:var(--surface);border:1px solid var(--line);color:var(--text);
   font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
 }
+
+/* Map picker */
+.map-modal{
+  position:fixed;inset:0;background:var(--bg);
+  z-index:210;display:none;flex-direction:column;
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.map-modal.show{display:flex;}
+.map-modal-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;font-size:13.5px;color:var(--text-dim);
+  border-bottom:1px solid var(--line);position:relative;
+}
+.map-modal-head .photo-modal-close{position:static;width:32px;height:32px;font-size:15px;}
+#mapPickerContainer{flex:1;width:100%;}
+.map-modal-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 16px;border-top:1px solid var(--line);
+  font-family:var(--font-display);font-size:12.5px;color:var(--text-dim);
+}
+.geo-choice-row{display:flex;gap:8px;margin-top:8px;}
+.geo-choice-row button{
+  flex:1;background:var(--bg);border:1px dashed var(--line);color:var(--text-dim);
+  border-radius:8px;padding:8px;font-size:12px;cursor:pointer;font-family:var(--font-body);
+}
 </style>
 </head>
 <body>
@@ -438,6 +466,18 @@ input.spend-min{
 <div class="photo-modal" id="photoModal">
   <button class="photo-modal-close" id="photoModalClose">✕</button>
   <img id="photoModalImg" src="" alt="Foto tappa">
+</div>
+
+<div class="map-modal" id="mapModal">
+  <div class="map-modal-head">
+    <span>Tocca la mappa per scegliere il punto</span>
+    <button class="photo-modal-close" id="mapModalClose">✕</button>
+  </div>
+  <div id="mapPickerContainer"></div>
+  <div class="map-modal-foot">
+    <span id="mapPickerCoords">Nessun punto selezionato</span>
+    <button class="btn-sm primary" id="mapPickerConfirm" disabled>Usa questo punto</button>
+  </div>
 </div>
 
 <script>
@@ -643,7 +683,7 @@ async function getDrivingSegment(a,b){
   }
 }
 
-/* ---------------- Geocoding (Nominatim) ---------------- */
+/* ---------------- Geocoding (OpenStreetMap / Nominatim) ---------------- */
 async function geocodeSearch(query){
   if(!query || query.trim().length<2) return [];
   const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=it`;
@@ -958,6 +998,15 @@ function renderStop(trip, day, stop, si, times){
   }
   card.appendChild(geoResultsDiv);
 
+  const geoChoiceRow = document.createElement('div');
+  geoChoiceRow.className='geo-choice-row';
+  const mapBtn = document.createElement('button');
+  mapBtn.type='button';
+  mapBtn.textContent = '🗺️ Scegli su mappa';
+  mapBtn.onclick = ()=>openMapPicker(stop);
+  geoChoiceRow.appendChild(mapBtn);
+  card.appendChild(geoChoiceRow);
+
   const meta = document.createElement('div');
   meta.className='stop-meta';
   meta.innerHTML = `
@@ -1098,6 +1147,90 @@ function closePhotoModal(){
 document.getElementById('photoModalClose').onclick = closePhotoModal;
 document.getElementById('photoModal').onclick = (e)=>{
   if(e.target.id==='photoModal') closePhotoModal();
+};
+
+/* ---------------- Map picker (Leaflet + OpenStreetMap tiles) ----------------
+   Free, no API key or account: tap the map to drop a pin and use those
+   coordinates for the stop. This is the second way to set a location,
+   alongside the text search box above it. */
+let mapPickerMap = null;
+let mapPickerMarker = null;
+let mapPickerStop = null;
+
+function nearbyKnownCoords(stop){
+  // Best-effort center point when the stop itself has no coordinates yet:
+  // look at neighbouring stops across all days of the current trip.
+  const trip = currentTrip();
+  let flat = [];
+  trip.days.forEach(d=>d.stops.forEach(s=>flat.push(s)));
+  const idx = flat.indexOf(stop);
+  for(let i=idx-1;i>=0;i--){ if(flat[i].lat!=null) return {lat:flat[i].lat, lon:flat[i].lon}; }
+  for(let i=idx+1;i<flat.length;i++){ if(flat[i].lat!=null) return {lat:flat[i].lat, lon:flat[i].lon}; }
+  return null;
+}
+
+function openMapPicker(stop){
+  mapPickerStop = stop;
+  document.getElementById('mapModal').classList.add('show');
+  document.getElementById('mapPickerConfirm').disabled = stop.lat==null;
+  document.getElementById('mapPickerCoords').textContent = stop.lat!=null
+    ? stop.lat.toFixed(5)+', '+stop.lon.toFixed(5)
+    : 'Nessun punto selezionato';
+
+  setTimeout(()=>{
+    if(!mapPickerMap){
+      mapPickerMap = L.map('mapPickerContainer');
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapPickerMap);
+      mapPickerMap.on('click', (e)=>placeMapPickerMarker(e.latlng.lat, e.latlng.lng));
+    }
+    mapPickerMap.invalidateSize();
+
+    if(mapPickerMarker){ mapPickerMap.removeLayer(mapPickerMarker); mapPickerMarker=null; }
+
+    if(stop.lat!=null){
+      mapPickerMap.setView([stop.lat, stop.lon], 14);
+      placeMapPickerMarker(stop.lat, stop.lon, false);
+    } else {
+      const near = nearbyKnownCoords(stop);
+      if(near){ mapPickerMap.setView([near.lat, near.lon], 9); }
+      else { mapPickerMap.setView([20,0], 2); }
+    }
+  }, 60);
+}
+
+function placeMapPickerMarker(lat, lon, updateCoordText=true){
+  if(mapPickerMarker){
+    mapPickerMarker.setLatLng([lat,lon]);
+  } else {
+    mapPickerMarker = L.marker([lat,lon], {draggable:true}).addTo(mapPickerMap);
+    mapPickerMarker.on('dragend', ()=>{
+      const p = mapPickerMarker.getLatLng();
+      document.getElementById('mapPickerCoords').textContent = p.lat.toFixed(5)+', '+p.lng.toFixed(5);
+      document.getElementById('mapPickerConfirm').disabled = false;
+    });
+  }
+  if(updateCoordText){
+    document.getElementById('mapPickerCoords').textContent = lat.toFixed(5)+', '+lon.toFixed(5);
+  }
+  document.getElementById('mapPickerConfirm').disabled = false;
+}
+
+function closeMapPicker(){
+  document.getElementById('mapModal').classList.remove('show');
+  mapPickerStop = null;
+}
+document.getElementById('mapModalClose').onclick = closeMapPicker;
+document.getElementById('mapPickerConfirm').onclick = ()=>{
+  if(!mapPickerMarker || !mapPickerStop) return;
+  const p = mapPickerMarker.getLatLng();
+  mapPickerStop.lat = p.lat;
+  mapPickerStop.lon = p.lng;
+  saveState();
+  closeMapPicker();
+  render();
 };
 
 function escapeAttr(s){
