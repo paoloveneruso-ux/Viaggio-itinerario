@@ -90,6 +90,9 @@ button.icon-btn{
 }
 button.icon-btn:active{background:var(--surface-2);}
 
+.share-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.share-row .btn-sm{flex:1;min-width:140px;text-align:center;}
+
 /* Section titles */
 .section-label{
   font-family:var(--font-display);
@@ -453,6 +456,10 @@ input.spend-min{
       <button class="icon-btn" id="newTripBtn" title="Nuovo viaggio">+</button>
       <button class="icon-btn" id="renameTripBtn" title="Rinomina">✎</button>
       <button class="icon-btn" id="deleteTripBtn" title="Elimina viaggio">🗑</button>
+    </div>
+    <div class="share-row">
+      <button class="btn-sm" id="shareTextBtn">📤 Condividi testo</button>
+      <button class="btn-sm" id="printViewBtn">🖨️ Vista stampabile / PDF</button>
     </div>
     <details class="settings">
       <summary>Impostazioni &amp; backup ▾</summary>
@@ -1356,6 +1363,114 @@ document.getElementById('mapPickerConfirm').onclick = ()=>{
 function escapeAttr(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---------------- Human-readable export (share as text / printable view) ----------------
+   These are for sharing the plan with someone who doesn't have the app, not
+   for re-importing — the JSON backup in Settings remains the source of truth. */
+function buildItineraryText(trip){
+  let out = `🗺️ ${trip.name}\n`;
+  if(trip.days.length===0){ out += '\n(nessun giorno ancora pianificato)\n'; return out; }
+  trip.days.forEach((day, di)=>{
+    const stats = computeDayStats(day);
+    out += `\n— Giorno ${di+1}: ${day.label}${day.date? ' ('+day.date+')' : ''} —\n`;
+    out += `Partenza/check-out: ${day.startTime}\n`;
+    day.stops.forEach(stop=>{
+      if(stop.active===false){
+        out += `  · ${stop.name} (esclusa dal calcolo)\n`;
+        return;
+      }
+      const t = stats.timesById[stop.id];
+      const icon = stop.type==='house' ? '🏠' : '📍';
+      out += `  ${icon} ${stop.name} — arrivo ${minutesToTime(t.arrival)}`;
+      if(stop.minutesSpend) out += `, sosta ${fmtDuration(stop.minutesSpend)}`;
+      out += `\n`;
+    });
+    out += `Totale guida: ${fmtDuration(stats.totalTravel)}${stats.totalKm? ' ('+stats.totalKm.toFixed(0)+' km)':''} · Soste: ${fmtDuration(stats.totalStop)}\n`;
+  });
+  out += `\nCreato con l'app itinerario di viaggio.`;
+  return out;
+}
+
+async function shareItineraryText(){
+  const trip = currentTrip();
+  const text = buildItineraryText(trip);
+  if(navigator.share){
+    try{ await navigator.share({ title: trip.name, text }); }
+    catch(e){ /* person cancelled the share sheet, nothing to do */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('Testo copiato negli appunti');
+  }catch(e){
+    const blob = new Blob([text], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = trip.name.replace(/[^a-z0-9]+/gi,'-')+'.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function buildPrintableHTML(trip){
+  let daysHtml = '';
+  trip.days.forEach((day, di)=>{
+    const stats = computeDayStats(day);
+    let stopsHtml = '';
+    day.stops.forEach(stop=>{
+      if(stop.active===false){
+        stopsHtml += `<div class="p-stop p-inactive">${escapeHtml(stop.name)} <em>(esclusa)</em></div>`;
+        return;
+      }
+      const t = stats.timesById[stop.id];
+      const icon = stop.type==='house' ? '🏠' : '📍';
+      stopsHtml += `<div class="p-stop">
+        <span class="p-time">${minutesToTime(t.arrival)}</span>
+        <span class="p-name">${icon} ${escapeHtml(stop.name)}</span>
+        ${stop.minutesSpend? `<span class="p-spend">sosta ${escapeHtml(fmtDuration(stop.minutesSpend))}</span>` : ''}
+      </div>`;
+    });
+    daysHtml += `<div class="p-day">
+      <h2>Giorno ${di+1}: ${escapeHtml(day.label)}${day.date? ' — '+escapeHtml(day.date) : ''}</h2>
+      <div class="p-meta">Partenza/check-out: ${escapeHtml(day.startTime)} · Guida: ${escapeHtml(fmtDuration(stats.totalTravel))}${stats.totalKm? ' ('+stats.totalKm.toFixed(0)+' km)':''} · Soste: ${escapeHtml(fmtDuration(stats.totalStop))}</div>
+      ${stopsHtml}
+    </div>`;
+  });
+  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<title>${escapeHtml(trip.name)}</title>
+<style>
+  body{font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:700px;margin:24px auto;padding:0 16px;color:#1a1a1a;}
+  h1{font-size:22px;margin-bottom:4px;}
+  .p-day{margin-top:26px;page-break-inside:avoid;}
+  h2{font-size:16px;border-bottom:2px solid #333;padding-bottom:4px;margin-bottom:4px;}
+  .p-meta{font-size:12px;color:#666;margin-bottom:10px;}
+  .p-stop{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px;}
+  .p-time{font-weight:600;min-width:48px;}
+  .p-name{flex:1;}
+  .p-spend{color:#777;font-size:12px;}
+  .p-inactive{color:#999;font-style:italic;}
+  @media print{ body{margin:0;} }
+</style></head>
+<body>
+<h1>${escapeHtml(trip.name)}</h1>
+<div style="font-size:12px;color:#888;">Itinerario generato dall'app — per salvare in PDF: Condividi → Stampa → Salva in PDF</div>
+${daysHtml}
+</body></html>`;
+}
+
+function openPrintableView(){
+  const trip = currentTrip();
+  const html = buildPrintableHTML(trip);
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
+document.getElementById('shareTextBtn').onclick = shareItineraryText;
+document.getElementById('printViewBtn').onclick = openPrintableView;
 
 /* ---------------- Header actions ---------------- */
 document.getElementById('tripSelect').onchange = (e)=>{
